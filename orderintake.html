@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Processing Tools</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- SheetJS for Excel Export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: #f7fafc;
+            font-size: 14px;
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            color: #4a5568;
+            font-weight: 500;
+            transition: background-color 0.2s, color 0.2s;
+        }
+
+        .nav-link:hover {
+            background-color: #e2e8f0;
+        }
+
+        .nav-link.active {
+            background-color: #4f46e5;
+            color: white;
+        }
+
+        .kpi-card {
+            background-color: white;
+            border-radius: 0.5rem;
+            padding: 1.25rem;
+            box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+        }
+
+        .table-container th,
+        .table-container td {
+            padding: 0.5rem 0.75rem;
+            border-bottom: 1px solid #e2e8f0;
+            white-space: nowrap;
+        }
+
+        .table-container th {
+            background-color: #f7fafc;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .table-container td.cell-selectable {
+            -webkit-user-select: none;
+            /* Safari */
+            -ms-user-select: none;
+            /* IE 10+ */
+            user-select: none;
+            /* Standard */
+        }
+
+        .table-container td.selected {
+            background-color: #cce5ff !important;
+        }
+
+        .sort-indicator {
+            display: inline-block;
+            margin-left: 0.5rem;
+            color: #a0aec0;
+        }
+
+        .loader {
+            border: 6px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 6px solid #4f46e5;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+        }
+
+        .modal-content {
+            background-color: white;
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            width: 90%;
+            max-width: 1200px;
+        }
+
+        .download-icon {
+            cursor: pointer;
+            color: #4a5568;
+            transition: color 0.2s;
+        }
+
+        .download-icon:hover {
+            color: #4f46e5;
+        }
+    </style>
+</head>
+
+<body class="text-gray-800">
+
+    <!-- Main Navigation -->
+    <nav class="bg-white shadow-sm">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-center h-16">
+                <div class="flex flex-wrap items-center justify-center space-x-2 sm:space-x-4">
+                    <a href="#" id="nav-converter" class="nav-link active"><svg class="h-5 w-5 mr-2" fill="none"
+                            viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                        </svg>CSV to Dashboard</a>
+                    <a href="#" id="nav-dashboard" class="nav-link"><svg class="h-5 w-5 mr-2" fill="none"
+                            viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>Dashboard</a>
+                    <a href="#" id="nav-pivot" class="nav-link"><svg class="h-5 w-5 mr-2" fill="none"
+                            viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>Standard Pivots</a>
+                    <a href="#" id="nav-custom-pivot" class="nav-link"><svg class="h-5 w-5 mr-2" fill="none"
+                            viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                        </svg>Custom Pivot</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Content Area -->
+    <main class="container mx-auto p-4 md:p-6">
+        <div id="converter-tool">
+            <header class="text-center mb-8">
+                <h1 class="text-3xl font-semibold text-gray-800">CSV to Dashboard Automation</h1>
+                <p class="text-gray-500 mt-1">Upload a CSV file to automatically generate the dashboard and pivot
+                    reports.</p>
+            </header>
+            <div class="max-w-xl mx-auto bg-white p-6 rounded-lg shadow-sm">
+                <div id="converter-upload-container">
+                    <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md"
+                        id="converter-drop-area">
+                        <div class="space-y-1 text-center"><svg class="mx-auto h-10 w-10 text-gray-400"
+                                stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
+                                <path
+                                    d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+                            </svg>
+                            <div class="flex text-sm text-gray-600"><label for="csv-file-input"
+                                    class="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500"><span>Upload
+                                        a file</span><input id="csv-file-input" type="file" class="sr-only"
+                                        accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"></label>
+                                <p class="pl-1">or drag and drop</p>
+                            </div>
+                            <p class="text-xs text-gray-500">CSV or Excel files</p>
+                        </div>
+                    </div>
+                </div>
+                <div id="converter-file-info" class="hidden mt-6 text-center">
+                    <p class="font-medium text-gray-700">File: <span id="converter-file-name"
+                            class="font-semibold"></span></p><button id="converter-process-btn"
+                        class="mt-4 bg-indigo-600 text-white font-semibold py-2 px-5 rounded-md hover:bg-indigo-700">Process
+                        & View Dashboard</button>
+                </div>
+                <div id="converter-message-box" class="hidden mt-4 p-3 rounded-md text-sm"></div>
+            </div>
+        </div>
+        <div id="dashboard-tool" class="hidden">
+            <header class="text-center mb-8">
+                <h1 class="text-3xl font-semibold text-gray-800">Dashboard KPIs</h1>
+                <p class="text-gray-500 mt-1">Upload a JSON file directly or process a CSV from the first tab.</p>
+            </header>
+            <div id="dashboard-upload-section" class="max-w-xl mx-auto bg-white p-6 rounded-lg shadow-sm">
+                <label for="json-file-input" class="block text-sm font-medium text-gray-700 mb-2">JSON File
+                    Upload</label>
+                <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md"
+                    id="dashboard-drop-area">
+                    <div class="space-y-1 text-center"><svg class="mx-auto h-10 w-10 text-gray-400"
+                            stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
+                            <path
+                                d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+                        </svg>
+                        <div class="flex text-sm text-gray-600"><label for="json-file-input"
+                                class="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500"><span>Upload
+                                    a file</span><input id="json-file-input" name="jsonFile" type="file" class="sr-only"
+                                    accept="application/json,.json"></label>
+                            <p class="pl-1">or drag and drop</p>
+                        </div>
+                        <p class="text-xs text-gray-500" id="dashboard-file-name-display">JSON up to 10MB</p>
+                    </div>
+                </div>
+            </div>
+            <div id="dashboard-loading-spinner" class="hidden flex justify-center items-center mt-8">
+                <div class="loader"></div>
+            </div>
+            <div id="dashboard-message-box" class="hidden mt-6 max-w-xl mx-auto p-3 rounded-md text-sm"></div>
+            <div id="dashboard-content" class="hidden mt-8">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                    <div class="kpi-card">
+                        <h3 class="text-gray-500 font-medium">Total Orders</h3>
+                        <p id="kpi-total-orders" class="text-2xl font-semibold mt-1">0</p>
+                    </div>
+                    <div class="kpi-card">
+                        <h3 class="text-gray-500 font-medium">Total Value</h3>
+                        <p id="kpi-total-value" class="text-2xl font-semibold mt-1">$0.00</p>
+                    </div>
+                    <div class="kpi-card">
+                        <h3 class="text-gray-500 font-medium">Total Quantity</h3>
+                        <p id="kpi-total-quantity" class="text-2xl font-semibold mt-1">0</p>
+                    </div>
+                    <div class="kpi-card">
+                        <h3 class="text-gray-500 font-medium">Outstanding Quantity</h3>
+                        <p id="kpi-outstanding-quantity" class="text-2xl font-semibold mt-1">0</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="pivot-tool" class="hidden">
+            <header class="text-center mb-8">
+                <h1 class="text-3xl font-semibold text-gray-800">Standard Pivot Reports</h1>
+                <p id="pivot-subtitle" class="text-gray-500 mt-1">Select a pre-defined report to view.</p>
+            </header>
+            <div class="max-w-md mx-auto mb-6">
+                <label for="pivot-select" class="block text-sm font-medium text-gray-700">Select Pivot Report</label>
+                <select id="pivot-select"
+                    class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 rounded-md">
+                    <option value="">-- Select a report --</option>
+                    <option value="ready_goods">Ready Goods</option>
+                    <option value="undone_pi">Undone PI</option>
+                </select>
+            </div>
+            <div id="pivot-table-content" class="hidden bg-white p-4 rounded-lg shadow-sm mb-8 table-container">
+                <div class="overflow-auto">
+                    <table id="pivotTable" class="min-w-full divide-y divide-gray-200">
+                        <thead id="pivot-table-head"></thead>
+                        <tbody id="pivot-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div id="pivot-message-box" class="text-center p-8 bg-white rounded-lg shadow-sm">
+                <p class="text-gray-500">Please upload a file to generate pivot data.</p>
+            </div>
+        </div>
+        <div id="custom-pivot-tool" class="hidden">
+            <header class="text-center mb-8">
+                <h1 class="text-3xl font-semibold text-gray-800">Custom Pivot Builder</h1>
+                <p class="text-gray-500 mt-1">Create your own pivot table by selecting filters and grouping options.</p>
+            </header>
+            <div id="custom-pivot-controls" class="hidden bg-white p-4 rounded-lg shadow-sm mb-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" id="custom-filter-grid">
+                    <!-- Filter Dropdowns will be inserted here by JS -->
+                </div>
+                <div class="mt-4 border-t pt-4">
+                    <button id="generate-custom-pivot-btn"
+                        class="w-full bg-indigo-600 text-white font-semibold py-2 px-5 rounded-md hover:bg-indigo-700">Generate
+                        Pivot</button>
+                </div>
+            </div>
+            <div id="custom-pivot-table-content" class="hidden bg-white p-4 rounded-lg shadow-sm mb-8 table-container">
+                <div class="overflow-auto">
+                    <table id="customPivotTable" class="min-w-full divide-y divide-gray-200">
+                        <thead id="custom-pivot-table-head"></thead>
+                        <tbody id="custom-pivot-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div id="custom-pivot-message-box" class="text-center p-8 bg-white rounded-lg shadow-sm">
+                <p class="text-gray-500">Please upload a file to enable the pivot builder.</p>
+            </div>
+        </div>
+    </main>
+
+    <!-- Drill Down Modal -->
+    <div id="drill-down-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="flex justify-between items-center mb-4">
+                <h2 id="drill-down-title" class="text-lg font-semibold">Drill Down Details</h2>
+                <div class="flex items-center space-x-4">
+                    <svg id="drill-down-download-btn" title="Download as Excel" class="h-6 w-6 download-icon"
+                        fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    <button id="close-modal-btn"
+                        class="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
+                </div>
+            </div>
+            <div id="drill-down-table-container" class="overflow-auto table-container"></div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- GLOBAL STATE & NAVIGATION ---
+            let processedDataStore = null;
+            let sortState = {
+                standard: { key: 'totalValue', order: 'desc' },
+                custom: { key: 'totalValue', order: 'desc' }
+            };
+            let drillDownData = [];
+
+            const navLinks = {
+                converter: document.getElementById('nav-converter'),
+                dashboard: document.getElementById('nav-dashboard'),
+                pivot: document.getElementById('nav-pivot'),
+                customPivot: document.getElementById('nav-custom-pivot')
+            };
+            const toolPages = {
+                converter: document.getElementById('converter-tool'),
+                dashboard: document.getElementById('dashboard-tool'),
+                pivot: document.getElementById('pivot-tool'),
+                customPivot: document.getElementById('custom-pivot-tool')
+            };
+
+            Object.keys(navLinks).forEach(key => {
+                navLinks[key].addEventListener('click', (e) => {
+                    e.preventDefault();
+                    showTool(key);
+                });
+            });
+
+            function showTool(toolName) {
+                Object.values(toolPages).forEach(page => page.classList.add('hidden'));
+                Object.values(navLinks).forEach(link => link.classList.remove('active'));
+                toolPages[toolName].classList.remove('hidden');
+                navLinks[toolName].classList.add('active');
+            }
+
+            function initializeWithData(jsonData) {
+                processedDataStore = processJsonData(jsonData);
+                populateDashboard(processedDataStore.kpis);
+                populateFilterDropdowns(processedDataStore.fullData);
+
+                document.getElementById('dashboard-upload-section').classList.add('hidden');
+                document.getElementById('dashboard-content').classList.remove('hidden');
+                document.getElementById('custom-pivot-controls').classList.remove('hidden');
+                document.getElementById('custom-pivot-message-box').classList.add('hidden');
+
+                document.getElementById('pivot-select').value = '';
+                document.getElementById('pivot-table-content').classList.add('hidden');
+                const pivotMessageBox = document.getElementById('pivot-message-box');
+                if (pivotMessageBox) {
+                    pivotMessageBox.classList.remove('hidden');
+                    pivotMessageBox.querySelector('p').textContent = "Select a report to view the pivot table.";
+                }
+                document.getElementById('custom-pivot-table-content').classList.add('hidden');
+            }
+
+            // --- MODAL & DRILL DOWN ---
+            document.getElementById('close-modal-btn').addEventListener('click', () => {
+                document.getElementById('drill-down-modal').classList.add('hidden');
+            });
+            document.getElementById('drill-down-download-btn').addEventListener('click', () => {
+                if (drillDownData.length > 0) {
+                    downloadAsExcel(drillDownData, 'DrillDownDetails');
+                }
+            });
+
+            function showDrillDown(data, title) {
+                drillDownData = data;
+                document.getElementById('drill-down-title').textContent = title;
+                renderDrillDownTable();
+                document.getElementById('drill-down-modal').classList.remove('hidden');
+            }
+
+            function renderDrillDownTable() {
+                const container = document.getElementById('drill-down-table-container');
+                container.innerHTML = '';
+                if (drillDownData.length === 0) return;
+
+                const table = document.createElement('table');
+                table.className = 'min-w-full divide-y divide-gray-200';
+                const thead = document.createElement('thead');
+                const tbody = document.createElement('tbody');
+
+                const headers = Object.keys(drillDownData[0]);
+                const headerRow = document.createElement('tr');
+                headers.forEach(header => {
+                    const th = document.createElement('th');
+                    th.textContent = header.replace(/_/g, ' ');
+                    headerRow.appendChild(th);
+                });
+                thead.appendChild(headerRow);
+
+                drillDownData.forEach(row => {
+                    const tr = document.createElement('tr');
+                    headers.forEach(header => {
+                        const td = document.createElement('td');
+                        td.textContent = row[header];
+                        tr.appendChild(td);
+                    });
+                    tbody.appendChild(tr);
+                });
+
+                table.append(thead, tbody);
+                container.appendChild(table);
+            }
+
+            // --- CELL SELECTION ---
+            let isSelecting = false;
+            document.addEventListener('mousedown', (e) => {
+                if (e.ctrlKey && e.target.tagName === 'TD' && e.target.closest('.table-container')) {
+                    isSelecting = true;
+                    document.querySelectorAll('.table-container td').forEach(cell => cell.classList.remove('selected'));
+                    e.target.classList.add('selected');
+                    e.preventDefault();
+                }
+            });
+            document.addEventListener('mouseover', (e) => {
+                if (isSelecting && e.target.tagName === 'TD' && e.target.closest('.table-container')) {
+                    e.target.classList.add('selected');
+                }
+            });
+            window.addEventListener('mouseup', () => { isSelecting = false; });
+
+            // --- CSV CONVERTER SCRIPT ---
+            const csvFileInput = document.getElementById('csv-file-input');
+            const csvDropArea = document.getElementById('converter-drop-area');
+            const csvProcessBtn = document.getElementById('converter-process-btn');
+            let csvSelectedFile = null;
+
+            function handleCsvFile(file) {
+                if (file) {
+                    if (!file.name.match(/\.(csv|xls|xlsx)$/i)) {
+                        showMessageOnPage('converter', 'Please upload a valid CSV or Excel file.', true);
+                        return;
+                    }
+                    csvSelectedFile = file;
+                    document.getElementById('converter-file-name').textContent = file.name;
+                    document.getElementById('converter-upload-container').classList.add('hidden');
+                    document.getElementById('converter-file-info').classList.remove('hidden');
+                    document.getElementById('converter-message-box').classList.add('hidden');
+                }
+            }
+            csvFileInput.addEventListener('change', (event) => handleCsvFile(event.target.files[0]));
+            csvDropArea.addEventListener('dragover', (e) => { e.preventDefault(); e.target.closest('.border-dashed').classList.add('border-indigo-500'); });
+            csvDropArea.addEventListener('dragleave', (e) => e.target.closest('.border-dashed').classList.remove('border-indigo-500'));
+            csvDropArea.addEventListener('drop', (e) => { e.preventDefault(); e.target.closest('.border-dashed').classList.remove('border-indigo-500'); handleCsvFile(e.dataTransfer.files[0]); });
+
+            csvProcessBtn.addEventListener('click', () => {
+                if (!csvSelectedFile) { showMessageOnPage('converter', 'No file selected.', true); return; }
+
+                document.getElementById('converter-file-info').classList.add('hidden');
+                showMessageOnPage('converter', 'Processing CSV... please wait.', false);
+
+                Papa.parse(csvSelectedFile, {
+                    complete: function (results) {
+                        if (!results.data || results.data.length < 4) {
+                            showMessageOnPage('converter', 'CSV has fewer than 4 rows. Cannot remove the first 3.', true);
+                            document.getElementById('converter-file-info').classList.remove('hidden');
+                            return;
+                        }
+                        const processedData = results.data.slice(3);
+                        const header = processedData[0];
+                        const rows = processedData.slice(1);
+                        const jsonArray = rows.map(row => {
+                            const jsonObject = {};
+                            header.forEach((key, index) => {
+                                if (key) {
+                                    const sanitizedKey = key.trim().replace(/\s+/g, '_');
+                                    jsonObject[sanitizedKey] = row[index];
+                                }
+                            });
+                            return jsonObject;
+                        }).filter(obj => Object.keys(obj).length > 0);
+
+                        initializeWithData(jsonArray);
+                        showTool('dashboard');
+                        showMessageOnPage('dashboard', 'CSV processed and dashboard loaded successfully!', false);
+                        document.getElementById('converter-upload-container').classList.remove('hidden');
+                        document.getElementById('converter-file-info').classList.add('hidden');
+                        document.getElementById('converter-message-box').classList.add('hidden');
+
+                    },
+                    error: (error) => {
+                        showMessageOnPage('converter', 'Error parsing CSV: ' + error.message, true);
+                        document.getElementById('converter-file-info').classList.remove('hidden');
+                    }
+                });
+            });
+
+            // --- DASHBOARD & PIVOT SCRIPT ---
+            const jsonFileInput = document.getElementById('json-file-input');
+            const pivotSelect = document.getElementById('pivot-select');
+            const generateCustomPivotBtn = document.getElementById('generate-custom-pivot-btn');
+
+            pivotSelect.addEventListener('change', () => {
+                const selectedPivot = pivotSelect.value;
+                if (processedDataStore) {
+                    sortState.standard = { key: 'totalValue', order: 'desc' };
+                    if (selectedPivot === 'ready_goods') {
+                        populateStandardPivotTable(processedDataStore.readyGoodsPivot);
+                    } else if (selectedPivot === 'undone_pi') {
+                        populateStandardPivotTable(processedDataStore.undonePiPivot);
+                    } else {
+                        document.getElementById('pivot-table-content').classList.add('hidden');
+                        document.getElementById('pivot-message-box').classList.remove('hidden').querySelector('p').textContent = "Select a report to view.";
+                    }
+                }
+            });
+
+            generateCustomPivotBtn.addEventListener('click', () => {
+                if (!processedDataStore) return;
+                const filters = {};
+                document.querySelectorAll('.custom-filter-select').forEach(select => {
+                    if (select.value !== 'ALL') filters[select.dataset.field] = select.value;
+                });
+                const groupByField = document.getElementById('group-by-select').value;
+                sortState.custom = { key: 'totalValue', order: 'desc' };
+                const customPivotData = generateCustomPivot(processedDataStore.fullData, groupByField, filters);
+                populateCustomPivotTable(customPivotData, groupByField);
+            });
+
+            function handleJsonFile(file) {
+                if (!file) { showMessageOnPage('dashboard', 'No file selected.', true); return; }
+                if (file.type !== 'application/json') { showMessageOnPage('dashboard', 'Invalid file type. Please upload a JSON file.', true); return; }
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const jsonData = JSON.parse(e.target.result);
+                        if (!jsonData || !Array.isArray(jsonData) || jsonData.length === 0) throw new Error('JSON file is empty or not an array of objects.');
+                        initializeWithData(jsonData);
+                    } catch (error) { showMessageOnPage('dashboard', `Error processing file: ${error.message}`, true); }
+                };
+                reader.onerror = () => showMessageOnPage('dashboard', 'Error reading the file.', true);
+                reader.readAsText(file);
+            }
+
+            const dashboardDropArea = document.getElementById('dashboard-drop-area');
+            jsonFileInput.addEventListener('change', (e) => handleJsonFile(e.target.files[0]));
+            dashboardDropArea.addEventListener('dragover', (e) => { e.preventDefault(); e.target.closest('.border-dashed').classList.add('border-indigo-500'); });
+            dashboardDropArea.addEventListener('dragleave', (e) => e.target.closest('.border-dashed').classList.remove('border-indigo-500'));
+            dashboardDropArea.addEventListener('drop', (e) => { e.preventDefault(); e.target.closest('.border-dashed').classList.remove('border-indigo-500'); handleJsonFile(e.dataTransfer.files[0]); });
+
+            function processJsonData(data) {
+                const today = new Date();
+                const createPivot = (pivotData, groupByField = 'Bill_To_Customer') => {
+                    const aggregated = pivotData.reduce((acc, row) => {
+                        const key = row[groupByField] || 'Unknown';
+                        if (!acc[key]) acc[key] = { totalValue: 0, ordQty: 0, workOrders: new Set(), dates: [], raw: [] };
+                        acc[key].totalValue += parseFloat(row.Value) || 0;
+                        acc[key].ordQty += parseInt(row.Ord_Qty) || 0;
+                        acc[key].workOrders.add(row['Works_Order#']);
+                        acc[key].dates.push(row['Date/Month']);
+                        acc[key].raw.push(row);
+                        return acc;
+                    }, {});
+                    return Object.keys(aggregated).map(key => {
+                        const orderDate = new Date(aggregated[key].dates[0]);
+                        const diffDays = !isNaN(orderDate.getTime()) ? Math.floor((today - orderDate) / (1000 * 60 * 60 * 24)) : 'N/A';
+                        return { group: key, totalValue: aggregated[key].totalValue, ordQty: aggregated[key].ordQty, workOrderCount: aggregated[key].workOrders.size, totalDays: diffDays, rawData: aggregated[key].raw };
+                    });
+                };
+
+                const readyGoodsData = data.filter(r => r.Chain === 'Dunnes' && r.CS === 'Mehedi Hasan Bangladesh' && r.Production_Path === 'Goods ready to delivery');
+                const undonePiData = data.filter(r => r.Chain === 'Dunnes' && r.CS === 'Mehedi Hasan Bangladesh' && (!r['PI#'] || r['PI#'] === ''));
+
+                const kpis = {
+                    totalOrders: data.length,
+                    totalValue: data.reduce((s, r) => s + (parseFloat(r.Value) || 0), 0),
+                    totalQuantity: data.reduce((s, r) => s + (parseInt(r.Ord_Qty) || 0), 0),
+                    outstandingQuantity: data.reduce((s, r) => s + (parseInt(r.Qty_Outstanding) || 0), 0)
+                };
+
+                return { kpis, readyGoodsPivot: createPivot(readyGoodsData), undonePiPivot: createPivot(undonePiData), fullData: data };
+            }
+
+            function populateDashboard(kpis) {
+                document.getElementById('kpi-total-orders').textContent = kpis.totalOrders.toLocaleString();
+                document.getElementById('kpi-total-value').textContent = `$${kpis.totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                document.getElementById('kpi-total-quantity').textContent = kpis.totalQuantity.toLocaleString();
+                document.getElementById('kpi-outstanding-quantity').textContent = kpis.outstandingQuantity.toLocaleString();
+            }
+
+            function populateFilterDropdowns(data) {
+                const filterContainer = document.getElementById('custom-filter-grid');
+                filterContainer.innerHTML = '';
+                const filterFields = ['Chain', 'CS', 'Production_Path', 'Order_Final_Date', 'Product_Line', 'Revised_Estimated_Delivery_Date', 'LC#', 'PI#', 'Date/Month'];
+                const groupByFields = ['Bill_To_Customer', ...filterFields];
+
+                let groupByHtml = `<div><label for="group-by-select" class="block text-sm font-medium text-gray-700">Group By (Rows)</label><select id="group-by-select" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 rounded-md">`;
+                groupByFields.forEach(field => { groupByHtml += `<option value="${field}">${field.replace(/_/g, ' ')}</option>`; });
+                groupByHtml += `</select></div>`;
+                filterContainer.innerHTML += groupByHtml;
+
+                filterFields.forEach(field => {
+                    const uniqueValues = [...new Set(data.map(item => item[field]).filter(Boolean))].sort();
+                    let optionsHtml = `<option value="ALL">All</option>`;
+                    uniqueValues.forEach(value => { optionsHtml += `<option value="${value}">${value}</option>`; });
+                    const filterHtml = `<div><label for="filter-${field}" class="block text-sm font-medium text-gray-700">${field.replace(/_/g, ' ')}</label><select id="filter-${field}" data-field="${field}" class="custom-filter-select mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 rounded-md">${optionsHtml}</select></div>`;
+                    filterContainer.innerHTML += filterHtml;
+                });
+
+                document.getElementById('group-by-select').value = 'CS';
+                document.getElementById('filter-Production_Path').value = 'Goods ready to delivery';
+            }
+
+            function generateCustomPivot(data, groupByField, filters) {
+                let filteredData = data;
+                for (const field in filters) {
+                    filteredData = filteredData.filter(row => row[field] === filters[field]);
+                }
+                return createPivot(filteredData, groupByField);
+            }
+
+            function renderTable(type, data, config) {
+                const { headId, bodyId, state, groupByField } = config;
+                const tableHead = document.getElementById(headId);
+                const tableBody = document.getElementById(bodyId);
+                tableHead.innerHTML = ''; tableBody.innerHTML = '';
+
+                let headers = [];
+                if (type === 'standard') {
+                    headers = [{ key: 'group', label: 'Bill To Customer' }, { key: 'totalValue', label: 'Total Value' }, { key: 'workOrderCount', label: 'W/O' }, { key: 'totalDays', label: 'Total Days' }];
+                } else {
+                    headers = [{ key: 'group', label: groupByField.replace(/_/g, ' ') }, { key: 'totalValue', label: 'Total Value' }, { key: 'ordQty', label: 'Ord Qty' }, { key: 'workOrderCount', label: 'W/O' }, { key: 'totalDays', label: 'Total Days' }];
+                }
+
+                const headerRow = document.createElement('tr');
+                headers.forEach(header => {
+                    const th = document.createElement('th');
+                    th.dataset.key = header.key;
+                    let indicator = state.column === header.key ? (state.order === 'asc' ? '▲' : '▼') : '';
+                    th.innerHTML = `${header.label} <span class="sort-indicator">${indicator}</span>`;
+                    headerRow.appendChild(th);
+                });
+                tableHead.appendChild(headerRow);
+
+                data.forEach(item => {
+                    const tr = document.createElement('tr');
+                    headers.forEach(header => {
+                        const td = document.createElement('td');
+                        td.classList.add('cell-selectable');
+                        let value = item[header.key];
+                        if (header.key === 'totalValue') {
+                            value = value.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+                        } else if (header.key !== 'group') {
+                            value = value.toLocaleString();
+                        }
+                        td.textContent = value;
+                        if (header.key !== 'group') {
+                            td.dataset.drill = JSON.stringify({ rawData: item.rawData, title: `${header.label} for ${item.group}` });
+                            td.classList.add('cursor-pointer', 'hover:bg-gray-100');
+                        }
+                        tr.appendChild(td);
+                    });
+                    tableBody.appendChild(tr);
+                });
+            }
+
+            function sortDataAndRender(type, data, column, config) {
+                const state = sortState[type];
+                state.order = state.column === column && state.order === 'asc' ? 'desc' : 'asc';
+                state.column = column;
+                const order = state.order === 'asc' ? 1 : -1;
+                data.sort((a, b) => {
+                    const valA = a[column];
+                    const valB = b[column];
+                    if (typeof valA === 'string') return valA.localeCompare(valB) * order;
+                    return (valA - valB) * order;
+                });
+                renderTable(type, data, config);
+            }
+
+            function populateStandardPivotTable(pivotData) {
+                const pivotContent = document.getElementById('pivot-table-content');
+                const pivotMessageBox = document.getElementById('pivot-message-box');
+                if (pivotData.length > 0) {
+                    pivotContent.classList.remove('hidden');
+                    pivotMessageBox.classList.add('hidden');
+                    sortDataAndRender('standard', pivotData, sortState.standard.key, { headId: 'pivot-table-head', bodyId: 'pivot-table-body', state: sortState.standard, groupByField: 'Bill_To_Customer' });
+                } else {
+                    pivotContent.classList.add('hidden');
+                    pivotMessageBox.classList.remove('hidden').querySelector('p').textContent = `No data found for the selected criteria.`;
+                }
+            }
+
+            function populateCustomPivotTable(pivotData, groupByField) {
+                const pivotContent = document.getElementById('custom-pivot-table-content');
+                const pivotMessageBox = document.getElementById('custom-pivot-message-box');
+                if (pivotData.length > 0) {
+                    pivotContent.classList.remove('hidden');
+                    pivotMessageBox.classList.add('hidden');
+                    sortDataAndRender('custom', pivotData, sortState.custom.key, { headId: 'custom-pivot-table-head', bodyId: 'custom-pivot-table-body', state: sortState.custom, groupByField });
+                } else {
+                    pivotContent.classList.add('hidden');
+                    pivotMessageBox.classList.remove('hidden').querySelector('p').textContent = `No data found for the selected filter combination.`;
+                }
+            }
+
+            document.getElementById('pivot-table-content').addEventListener('click', (e) => {
+                const th = e.target.closest('th');
+                const td = e.target.closest('td');
+                if (th && processedDataStore) {
+                    const key = th.dataset.key;
+                    const selectedPivot = pivotSelect.value;
+                    const dataToSort = selectedPivot === 'ready_goods' ? processedDataStore.readyGoodsPivot : processedDataStore.undonePiPivot;
+                    sortDataAndRender('standard', dataToSort, key, { headId: 'pivot-table-head', bodyId: 'pivot-table-body', state: sortState.standard, groupByField: 'Bill_To_Customer' });
+                } else if (td && td.dataset.drill) {
+                    const drillInfo = JSON.parse(td.dataset.drill);
+                    showDrillDown(drillInfo.rawData, drillInfo.title);
+                }
+            });
+
+            document.getElementById('custom-pivot-table-content').addEventListener('click', (e) => {
+                const th = e.target.closest('th');
+                const td = e.target.closest('td');
+                if (th && processedDataStore) {
+                    const key = th.dataset.key;
+                    const groupByField = document.getElementById('group-by-select').value;
+                    const filters = {};
+                    document.querySelectorAll('.custom-filter-select').forEach(select => { if (select.value !== 'ALL') filters[select.dataset.field] = select.value; });
+                    const dataToSort = generateCustomPivot(processedDataStore.fullData, groupByField, filters);
+                    sortDataAndRender('custom', dataToSort, key, { headId: 'custom-pivot-table-head', bodyId: 'custom-pivot-table-body', state: sortState.custom, groupByField });
+                } else if (td && td.dataset.drill) {
+                    const drillInfo = JSON.parse(td.dataset.drill);
+                    showDrillDown(drillInfo.rawData, drillInfo.title);
+                }
+            });
+
+            function downloadAsExcel(data, fileName) {
+                const worksheet = XLSX.utils.json_to_sheet(data);
+                const workbook = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(workbook, worksheet, "Data");
+                XLSX.writeFile(workbook, `${fileName}.xlsx`);
+            }
+
+            function showMessageOnPage(page, message, isError = false) {
+                const box = document.getElementById(`${page}-message-box`);
+                box.textContent = message;
+                box.className = `mt-6 max-w-xl mx-auto p-3 rounded-md text-sm ${isError ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`;
+                box.classList.remove('hidden');
+            }
+        });
+    </script>
+</body>
+
+</html>
